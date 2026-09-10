@@ -307,41 +307,64 @@ public class MainCanvas extends JPanel implements Runnable{
 		}
 	}
 	@Override
-	public void paint(Graphics g) {
-		
-		for(int i = 0; i < bufferDeVideo.length; i++) {
-			bufferDeVideo[i] = 0;
-		}
-		
-		
-		g.setFont(f);
-		
-		g.setColor(Color.white);
-		g.fillRect(0, 0, 640, 480);
-		
-		g.drawImage(imageBuffer,0,0,null);
-		
-		g.setColor(Color.black);
-		
-		for(int i = 0; i < linhas.size();i++) {
-			linhas.get(i).draw(g);
-		}
-		
-		g.setColor(Color.red);
-		if(p0!=null) {
-			g.drawLine((int)p0.X, (int)p0.Y, mouseX, mouseY);
-		}
-		
-		g.setColor(Color.BLUE);
-		if(pC!=null) {
-			g.fillRect((int)pC.X-2, (int)pC.Y-2, 5, 5);
-		}
-		
+public void paint(Graphics g) {
+    // 1. Limpa o buffer de vídeo
+    for(int i = 0; i < bufferDeVideo.length; i++) {
+        bufferDeVideo[i] = 0;
+    }
+    
+    // =========================================================
+    // DESENHO DO TRIÂNGULO 3D COM TRANSFORMAÇÃO MATRICIAL (4x4)
+    // =========================================================
+    
+    // Criando os 3 Pontos 3D originais do Triângulo
+    Ponto3D p1 = new Ponto3D(-50, -50, 0);
+    Ponto3D p2 = new Ponto3D(50, -50, 0);
+    Ponto3D p3 = new Ponto3D(0, 50, 0);
+    
+    Triangulo3D tri = new Triangulo3D(p1, p2, p3);
 
-		
-		g.setColor(Color.black);
-		g.drawString("FPS "+fps+" mouse: "+mouseX+","+mouseY, 10, 25);
-	}
+    // Matrizes de Transformação 4x4
+    Mat4x4 escala = Mat4x4.scale(1.5, 1.5, 1.0);
+    Mat4x4 rotacao = Mat4x4.rotacaoZ(45); // Rotação no eixo Z
+    Mat4x4 translacao = Mat4x4.translacao(320, 240, 0); // Translada para o centro da tela
+
+    // Composição Matricial 4x4: M = Translação * Rotação * Escala
+    Mat4x4 mComposta = translacao.multiplicacao_mat4x4(rotacao).multiplicacao_mat4x4(escala);
+
+    // Aplica a transformação aos 3 pontos do triângulo usando a função transform(Mat4x4)
+    Triangulo3D triTrans = tri.transform(mComposta);
+
+    // Desenha as 3 arestas do triângulo 3D usando Bresenham diretamente no buffer (Verde)
+    desenhaLinhaBresenham((int)triTrans.p1.x, (int)triTrans.p1.y, (int)triTrans.p2.x, (int)triTrans.p2.y, 0, 255, 0);
+    desenhaLinhaBresenham((int)triTrans.p2.x, (int)triTrans.p2.y, (int)triTrans.p3.x, (int)triTrans.p3.y, 0, 255, 0);
+    desenhaLinhaBresenham((int)triTrans.p3.x, (int)triTrans.p3.y, (int)triTrans.p1.x, (int)triTrans.p1.y, 0, 255, 0);
+
+    // =========================================================
+
+    g.setFont(f);
+    
+    // Desenha o buffer de vídeo atualizado na tela
+    g.drawImage(imageBuffer, 0, 0, null);
+    
+    g.setColor(Color.black);
+    for(int i = 0; i < linhas.size(); i++) {
+        linhas.get(i).draw(g);
+    }
+    
+    g.setColor(Color.red);
+    if(p0 != null) {
+        g.drawLine((int)p0.X, (int)p0.Y, mouseX, mouseY);
+    }
+    
+    g.setColor(Color.BLUE);
+    if(pC != null) {
+        g.fillRect((int)pC.X - 2, (int)pC.Y - 2, 5, 5);
+    }
+    
+    g.setColor(Color.black);
+    g.drawString("FPS " + fps + " mouse: " + mouseX + "," + mouseY, 10, 25);
+}
 	
 	public void desenhaLinhaHorizontal(int x, int y,int w) {
 		int pospix = y*(W*4)+x*4;
@@ -378,6 +401,36 @@ public class MainCanvas extends JPanel implements Runnable{
 		bufferDeVideo[pospix+3] = (byte)(r&0xff);
 	
 	}
+
+	public void desenhaLinhaBresenham(int x1, int y1, int x2, int y2, int r, int g, int b) {
+    int dx = Math.abs(x2 - x1);
+    int dy = Math.abs(y2 - y1);
+    int sx = x1 < x2 ? 1 : -1;
+    int sy = y1 < y2 ? 1 : -1;
+    int err = dx - dy;
+
+    int x = x1;
+    int y = y1;
+
+    while (true) {
+        // CLIPPING: Só desenha se estiver dentro da área da tela (640x480)
+        if (x >= 0 && x < W && y >= 0 && y < H) {
+            desenhaPixel(x, y, r, g, b);
+        }
+
+        if (x == x2 && y == y2) break;
+
+        int e2 = 2 * err;
+        if (e2 > -dy) {
+            err -= dy;
+            x += sx;
+        }
+        if (e2 < dx) {
+            err += dx;
+            y += sy;
+        }
+    }
+}
 	
 	public void start(){
 		runner = new Thread(this);
